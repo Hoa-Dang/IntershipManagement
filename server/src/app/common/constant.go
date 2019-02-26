@@ -31,18 +31,19 @@ const (
 	Longitude = "109.22367"
 	IconSign  = "https://i.screenshot.net/o8mp8hl"
 
-	Status = "status"
-	Message = "message"
-	Error = "Error"
-	NotFound = "Not found"
-	Failed = "Failed"
-	Success = "Success"
+	Status                = "status"
+	Message               = "message"
+	Error                 = "Error"
+	NotFound              = "Not found"
+	Failed                = "Failed"
+	Success               = "Success"
 	ErrReadingRequestData = "Can not read request's data."
-	TraineeNotFound = "Trainee not found."
-	MentorNotFound = "Mentor not found."
-	ErrSendMail = "Send email failed."
-	SendMailSuccess = "Send email successfully."
+	TraineeNotFound       = "Trainee not found."
+	MentorNotFound        = "Mentor not found."
+	ErrSendMail           = "Send email failed."
+	SendMailSuccess       = "Send email successfully."
 
+	DefaultPassword = "12345678x@X"
 )
 
 var ListIcons = map[string]string{

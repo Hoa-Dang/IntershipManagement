@@ -7,6 +7,7 @@ import (
 	"../common"
 	"../models"
 	"github.com/gin-gonic/gin"
+	"golang.org/x/crypto/bcrypt"
 	"gopkg.in/mgo.v2"
 	"gopkg.in/mgo.v2/bson"
 )
@@ -17,7 +18,6 @@ func getMentorByID(c *gin.Context, id string) (error, *models.Mentor) {
 	oID := bson.ObjectIdHex(id)
 	mentor := models.Mentor{}
 	err := database.C(models.CollectionMentor).FindId(oID).One(&mentor)
-	//common.CheckError(c, err)
 	if err != nil {
 		return err, nil
 	}
@@ -29,21 +29,51 @@ func getMentorByID(c *gin.Context, id string) (error, *models.Mentor) {
 func ListMentors(c *gin.Context) {
 	database := c.MustGet("db").(*mgo.Database)
 
-	mentors := []models.Mentor{}
-	err := database.C(models.CollectionMentor).Find(bson.M{"IsDeleted": false}).All(&mentors)
-	common.CheckError(c, err)
+	//mentors := []models.Mentor{}
+	collection := database.C(models.CollectionMentor)
+	query := []bson.M{
+		{
+			"$lookup": bson.M{ // lookup the documents table here
+				"from":         "supervisor",
+				"localField":   "SupervisorID",
+				"foreignField": "_id",
+				"as":           "Supervisor",
+			}},
+		{
+			"$unwind": "$Supervisor",
+		},
+		{"$match": bson.M{
+			"IsDeleted": false,
+		}},
+		{
+			"$project": bson.M{
+				"Name":           1,
+				"PhoneNumber":    1,
+				"Gender":         1,
+				"Email":          1,
+				"DayofBirth":     1,
+				"Department":     1,
+				"SupervisorID":   1,
+				"IsDeleted":      1,
+				"SupervisorName": "$Supervisor.Name",
+			},
+		},
+	}
+	pipe := collection.Pipe(query)
+	resp := []bson.M{}
+	err := pipe.All(&resp)
+	//err := database.C(models.CollectionMentor).Find(bson.M{"IsDeleted": false}).All(&mentors)
+	if common.CheckError(c, err) {
+		return
+	}
 
-	c.JSON(http.StatusOK, mentors)
+	c.JSON(http.StatusOK, resp)
 }
 
 // Get an mentor
 func GetMentor(c *gin.Context) {
 	err, mentor := getMentorByID(c, c.Param("id"))
-	if err != nil {
-		c.JSON(http.StatusNotFound, gin.H{
-			"status":  "Not found",
-			"message": "Mentor not found",
-		})
+	if common.CheckNotFound(c, err) {
 		return
 	}
 	c.JSON(http.StatusOK, mentor)
@@ -56,58 +86,66 @@ func CreateMentor(c *gin.Context) {
 	mentor := models.Mentor{}
 	buf, _ := c.GetRawData()
 	err := json.Unmarshal(buf, &mentor)
-	common.CheckError(c, err)
+	if common.CheckError(c, err) {
+		return
+	}
 
 	err = database.C(models.CollectionMentor).Insert(mentor)
-	common.CheckError(c, err)
+	if common.CheckError(c, err) {
+		return
+	}
 
-	c.JSON(http.StatusCreated, nil)
+	err = database.C(models.CollectionMentor).Find(nil).Sort("-$natural").Limit(1).One(&mentor)
+	if common.CheckError(c, err) {
+		return
+	}
+
+	// Create User
+	hash, _ := bcrypt.GenerateFromPassword([]byte(common.DefaultPassword), bcrypt.DefaultCost)
+	user := models.User{}
+	user.UserName = mentor.Email
+	user.Password = string(hash)
+	user.Role = 2
+	user.RoleID = mentor.ID
+
+	err = database.C(models.CollectionUser).Insert(user)
+	if common.CheckError(c, err) {
+		return
+	}
+	c.JSON(http.StatusCreated, mentor)
 }
 
 // Update an mentor
-// func UpdateMentor(c *gin.Context) {
-// 	database := c.MustGet("db").(*mgo.Database)
+func UpdateMentor(c *gin.Context) {
+	database := c.MustGet("db").(*mgo.Database)
 
-// 	type UpdateMentor struct {
-// 		ID          string    `bson:"_id,omitempty"`
-// 		Name        string    `bson:"Name"`
-// 		PhoneNumber string    `bson:"PhoneNumber"`
-// 		Email       string    `bson:"Email"`
-// 		Gender      bool      `bson:"Gender"` //true: Male, false: Female
-// 		DoB         time.Time `bson:"DayofBirth"`
-// 		Department  string    `bson:"Department"`
-// 	}
+	mentor := models.Mentor{}
+	buf, _ := c.GetRawData()
+	err := json.Unmarshal(buf, &mentor)
+	if common.CheckError(c, err) {
+		return
+	}
 
-// 	mentorUpdate := models.Mentor{}
-// 	mentor := UpdateMentor{}
-// 	buf, _ := c.GetRawData()
-// 	err := json.Unmarshal(buf, &mentor)
-// 	common.CheckError(c, err)
-// 	mentorUpdate = getMentorByID(c, mentor.ID)
-// 	mentorUpdate.Name = mentor.Name
-// 	mentorUpdate.PhoneNumber = mentor.PhoneNumber
-// 	mentorUpdate.Email = mentor.Email
-// 	mentorUpdate.Gender = mentor.Gender
-// 	mentorUpdate.DoB = mentor.DoB
-// 	mentorUpdate.Department = mentor.Department
+	err = database.C(models.CollectionMentor).UpdateId(mentor.ID, mentor)
+	if common.CheckError(c, err) {
+		return
+	}
 
-// 	err = database.C(models.CollectionMentor).UpdateId(mentorUpdate.ID, mentorUpdate)
-// 	common.CheckError(c, err)
-
-// 	c.JSON(http.StatusOK, nil)
-// }
+	c.JSON(http.StatusOK, nil)
+}
 
 // Delete an mentor
 func DeleteMentor(c *gin.Context) {
 	database := c.MustGet("db").(*mgo.Database)
-	errGet, mentor := getMentorByID(c, c.Param("id"))
-	if errGet != nil {
-		c.JSON(http.StatusBadRequest, nil)
+
+	err := database.C(models.CollectionMentor).UpdateId(bson.ObjectIdHex(c.Param("id")), bson.M{"$set": bson.M{"IsDeleted": true}})
+	if common.CheckError(c, err) {
 		return
 	}
-	mentor.IsDeleted = true
-	err := database.C(models.CollectionMentor).UpdateId(mentor.ID, mentor)
-	common.CheckError(c, err)
 
+	//Delete User
+	if !DeleteUser(c, bson.ObjectIdHex(c.Param("id"))) {
+		return
+	}
 	c.JSON(http.StatusNoContent, nil)
 }

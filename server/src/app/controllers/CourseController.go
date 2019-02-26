@@ -3,7 +3,6 @@ package controllers
 import (
 	"encoding/json"
 	"net/http"
-	"strconv"
 
 	"../common"
 	"../models"
@@ -23,36 +22,87 @@ func getCourseByID(c *gin.Context, id string) models.Course {
 	return course
 }
 
-// Get course by id
-func GetCourseByIDTrainee(c *gin.Context, id string) {
-	// timeTrain := []
-	var complete int64 = 0
-	var all int64 = 0
-	database := c.MustGet("db").(*mgo.Database)
-	oID := bson.ObjectIdHex(id)
-	course := models.Course{}
-	err := database.C(models.CollectionCourse).Find(bson.M{"TraineeIDs": oID}).One(&course)
-	common.CheckError(c, err)
-	for i := 0; i < len(course.Detail); i++ {
-		temp, _ := strconv.ParseInt(course.Detail[i].DurationPlan, 10, 64)
-		all = all + temp
-		if course.Detail[i].Progress == "100" {
-			complete = complete + temp
-		}
-	}
-	// timeTrain.
-	c.JSON(http.StatusOK, course)
-}
-
 // List all courses
 func ListCourses(c *gin.Context) {
 	database := c.MustGet("db").(*mgo.Database)
 
-	courses := []models.Course{}
-	err := database.C(models.CollectionCourse).Find(bson.M{"IsDeleted": false}).All(&courses)
+	//courses := []models.Course{}
+	collection := database.C(models.CollectionCourse)
+	query := []bson.M{
+		{
+			"$lookup": bson.M{ // lookup the documents table here
+				"from":         "mentor",
+				"localField":   "MentorID",
+				"foreignField": "_id",
+				"as":           "Mentor",
+			}},
+		{
+			"$unwind": "$Mentor",
+		},
+		{"$match": bson.M{
+			"IsDeleted": false,
+		}},
+		{
+			"$project": bson.M{
+				"CourseName": 1,
+				"StartDate":  1,
+				"EndDate":    1,
+				"Detail":     1,
+				"MentorID":   1,
+				"IsDeleted":  1,
+				"MentorName": "$Mentor.Name",
+			},
+		},
+	}
+	pipe := collection.Pipe(query)
+	resp := []bson.M{}
+	err := pipe.All(&resp)
+	//err := database.C(models.CollectionCourse).Find(bson.M{"IsDeleted": false}).All(&courses)
 	common.CheckError(c, err)
 
-	c.JSON(http.StatusOK, courses)
+	c.JSON(http.StatusOK, resp)
+}
+
+// Get List Courses by MentorID
+func GetCoursesByMentorID(c *gin.Context) {
+	database := c.MustGet("db").(*mgo.Database)
+	collection := database.C(models.CollectionCourse)
+
+	err, mentor := getMentorByID(c, c.Param("id"))
+	common.CheckError(c, err)
+
+	query := []bson.M{
+		{
+			"$lookup": bson.M{ // lookup the documents table here
+				"from":         "mentor",
+				"localField":   "MentorID",
+				"foreignField": "_id",
+				"as":           "Mentor",
+			}},
+		{
+			"$unwind": "$Mentor",
+		},
+		{"$match": bson.M{
+			"IsDeleted": false,
+			"MentorID":  mentor.ID,
+		}},
+		{
+			"$project": bson.M{
+				"CourseName": 1,
+				"StartDate":  1,
+				"EndDate":    1,
+				"Detail":     1,
+				"MentorID":   1,
+				"IsDeleted":  1,
+				"MentorName": "$Mentor.Name",
+			},
+		},
+	}
+	pipe := collection.Pipe(query)
+	resp := []bson.M{}
+	err = pipe.All(&resp)
+	common.CheckError(c, err)
+	c.JSON(http.StatusOK, resp)
 }
 
 // Get a course
@@ -74,7 +124,35 @@ func GetCourseByName(c *gin.Context) {
 // Create a course
 func CreateCourse(c *gin.Context) {
 	database := c.MustGet("db").(*mgo.Database)
-
+	/*
+		arrObjectIds := []bson.ObjectId{bson.ObjectIdHex("123123"), bson.ObjectIdHex("43221")}
+		courseDetails := []models.CourseDetail{
+			{
+				TrainingOutline: "Update",
+				Content:         "contentUpdate",
+				DurationPlan:    "",
+				DurationActual:  "",
+				Objectives:      "",
+				TrainingMethod:  "",
+				StartDate:       time.Date(2018, time.August, 10, 0, 0, 0, 0, time.UTC),
+				EndDate:         time.Date(2018, time.August, 10, 0, 0, 0, 0, time.UTC),
+				Progress:        "",
+				Note:            "",
+			},
+			{
+				TrainingOutline: "Updated_1",
+				Content:         "contentUpdate",
+				DurationPlan:    "",
+				DurationActual:  "",
+				Objectives:      "",
+				TrainingMethod:  "",
+				StartDate:       time.Date(2018, time.August, 10, 0, 0, 0, 0, time.UTC),
+				EndDate:         time.Date(2018, time.August, 10, 0, 0, 0, 0, time.UTC),
+				Progress:        "",
+				Note:            "",
+			},
+		}
+	*/
 	course := models.Course{}
 	buf, _ := c.GetRawData()
 	err := json.Unmarshal(buf, &course)
@@ -110,4 +188,22 @@ func DeleteCourse(c *gin.Context) {
 	common.CheckError(c, err)
 
 	c.JSON(http.StatusNoContent, nil)
+}
+
+func GetCourseByTrainee(c *gin.Context, id string) (error, *models.Course){
+	database := c.MustGet("db").(*mgo.Database)
+	trainee := models.Trainee{}
+	oID := bson.ObjectIdHex(id)
+	err := database.C(models.CollectionTrainee).FindId(oID).One(&trainee)
+	if err != nil {
+		return err, nil
+	}
+	
+	course := models.Course{}
+	errCourse := database.C(models.CollectionCourse).FindId(trainee.CourseID).One(&course)
+	if errCourse != nil {
+		return errCourse, nil
+	}
+
+	return nil, &course
 }

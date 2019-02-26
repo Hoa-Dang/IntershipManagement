@@ -7,37 +7,64 @@ import (
 	"../common"
 	"../models"
 	"github.com/gin-gonic/gin"
+	"golang.org/x/crypto/bcrypt"
 	"gopkg.in/mgo.v2"
 	"gopkg.in/mgo.v2/bson"
 )
 
 // Get user by id
-func getUserByID(c *gin.Context, id string) models.User {
+func getUserByID(c *gin.Context, id string) (error, *models.User) {
 	database := c.MustGet("db").(*mgo.Database)
 	oID := bson.ObjectIdHex(id)
 	user := models.User{}
 	err := database.C(models.CollectionUser).FindId(oID).One(&user)
-	common.CheckError(c, err)
+	if err != nil {
+		return err, nil
+	}
 
-	return user
+	return nil, &user
 }
 
 // Get User Login
-func getUserLogin(c *gin.Context, username string, password string) models.User {
+func getUserLogin(c *gin.Context, username string, password string) *models.User {
 	database := c.MustGet("db").(*mgo.Database)
 
 	user := models.User{}
-	err := database.C(models.CollectionUser).Find(bson.M{"UserName": username, "Password": password, "IsDeleted": false}).One(&user)
-	common.CheckError(c, err)
+	err := database.C(models.CollectionUser).Find(bson.M{"UserName": username, "Password": password}).One(&user)
+	if common.CheckNotFound(c, err) {
+		return nil
+	}
 
-	return user
+	return &user
 }
 
 // Check Login from client
 func CheckLogin(c *gin.Context) {
-	user := getUserLogin(c, c.Param("username"), c.Param("password"))
+	database := c.MustGet("db").(*mgo.Database)
 
-	c.JSON(http.StatusOK, user)
+	userTemp := models.User{}
+	buf, _ := c.GetRawData()
+	err := json.Unmarshal(buf, &userTemp)
+	if common.CheckError(c, err) {
+		return
+	}
+
+	user := models.User{}
+	err = database.C(models.CollectionUser).Find(bson.M{"UserName": userTemp.UserName, "IsDeleted": false}).One(&user)
+	if err != nil {
+		c.JSON(http.StatusOK, gin.H{
+			"message": err.Error(),
+		})
+		return
+	}
+
+	if err := bcrypt.CompareHashAndPassword([]byte(user.Password), []byte(userTemp.Password)); err != nil {
+		c.JSON(http.StatusOK, gin.H{
+			"message": "Username or Password is not correct!",
+		})
+	} else {
+		c.JSON(http.StatusOK, user)
+	}
 }
 
 // List all users
@@ -46,14 +73,18 @@ func ListUsers(c *gin.Context) {
 
 	users := []models.User{}
 	err := database.C(models.CollectionUser).Find(bson.M{"IsDeleted": false}).All(&users)
-	common.CheckError(c, err)
-
+	if common.CheckError(c, err) {
+		return
+	}
 	c.JSON(http.StatusOK, users)
 }
 
 // Get an user
 func GetUser(c *gin.Context) {
-	user := getUserByID(c, c.Param("id"))
+	err, user := getUserByID(c, c.Param("id"))
+	if common.CheckNotFound(c, err) {
+		return
+	}
 	c.JSON(http.StatusOK, user)
 }
 
@@ -64,10 +95,14 @@ func CreateUser(c *gin.Context) {
 	user := models.User{}
 	buf, _ := c.GetRawData()
 	err := json.Unmarshal(buf, &user)
-	common.CheckError(c, err)
+	if common.CheckError(c, err) {
+		return
+	}
 
 	err = database.C(models.CollectionUser).Insert(user)
-	common.CheckError(c, err)
+	if common.CheckError(c, err) {
+		return
+	}
 
 	c.JSON(http.StatusCreated, nil)
 }
@@ -79,21 +114,25 @@ func UpdateUser(c *gin.Context) {
 	user := models.User{}
 	buf, _ := c.GetRawData()
 	err := json.Unmarshal(buf, &user)
-	common.CheckError(c, err)
+	if common.CheckError(c, err) {
+		return
+	}
 
 	err = database.C(models.CollectionUser).UpdateId(user.ID, user)
-	common.CheckError(c, err)
+	if common.CheckError(c, err) {
+		return
+	}
 
 	c.JSON(http.StatusOK, nil)
 }
 
 // Delete an user
-func DeleteUser(c *gin.Context) {
+func DeleteUser(c *gin.Context, id bson.ObjectId) bool {
 	database := c.MustGet("db").(*mgo.Database)
-	user := getUserByID(c, c.Param("id"))
-	user.IsDeleted = true
-	err := database.C(models.CollectionUser).UpdateId(user.ID, user)
-	common.CheckError(c, err)
 
-	c.JSON(http.StatusNoContent, nil)
+	err := database.C(models.CollectionUser).Update(bson.M{"RoleId": id}, bson.M{"$set": bson.M{"IsDeleted": true}})
+	if common.CheckError(c, err) {
+		return false
+	}
+	return true
 }

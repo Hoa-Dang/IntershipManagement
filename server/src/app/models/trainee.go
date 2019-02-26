@@ -19,7 +19,6 @@ type Trainee struct {
 	DoB         time.Time     `bson:"DayofBirth"`
 	University  string        `bson:"University"`
 	Faculty     string        `bson:"Faculty"`
-	MentorId    bson.ObjectId `bson:"MentorId"`
-	//CourseID    bson.ObjectId `bson:"CourseID"`
-	IsDeleted bool `bson:"IsDeleted"` // true: deleted, false: not
+	CourseID    bson.ObjectId `bson:"CourseID"`
+	IsDeleted   bool          `bson:"IsDeleted"` // true: deleted, false: not
 }

@@ -44,14 +44,14 @@ func setupRouter() *gin.Engine {
 	// Users
 	r.GET("/users", controllers.ListUsers)
 	r.GET("/user/:id", controllers.GetUser)
-	r.GET("/login/:username/:password", controllers.CheckLogin)
+	r.PUT("/login", controllers.CheckLogin)
 	r.POST("/user", controllers.CreateUser)
 	r.PUT("/user", controllers.UpdateUser)
-	r.DELETE("/user/:id", controllers.DeleteUser)
 
 	// Trainees
 	r.GET("/trainees", controllers.ListTrainees)
 	r.GET("/trainee/:id", controllers.GetTrainee)
+	r.GET("/trainees/:id", controllers.ListTraineesByMentorID)
 	r.POST("/trainee", controllers.CreateTrainee)
 	r.POST("/trainee/:id/report", controllers.SendReport)
 	r.PUT("/trainee", controllers.UpdateTrainee)
@@ -74,13 +74,18 @@ func setupRouter() *gin.Engine {
 	// Attendances
 	r.GET("/attendances", controllers.ListAttendances)
 	r.GET("/attendance/:id", controllers.GetAttendance)
+	r.GET("/attendance/:id/trainee", controllers.GetTraineeAttendances)
+	r.GET("/attendance/:id/mentor", controllers.GetDailyAttendance)
 	r.POST("/attendance", controllers.CreateAttendance)
+	r.POST("/attendance/daily", controllers.UpdateDailyAttendance)
+	r.POST("/attendance/update", controllers.UpdateAttendanceByDate)
 	r.PUT("/attendance", controllers.UpdateAttendance)
 	r.DELETE("/attendance/:id", controllers.DeleteAttendance)
 
 	// Courses
 	// r.GET("/courses/progress", controllers.GetCourseByIDTrainee)
 	r.GET("/courses", controllers.ListCourses)
+	r.GET("/courses/:id", controllers.GetCoursesByMentorID)
 	r.GET("/course/:id", controllers.GetCourse)
 	r.GET("/coursename/:name", controllers.GetCourseByName)
 	r.POST("/course", controllers.CreateCourse)

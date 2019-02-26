@@ -12,6 +12,6 @@ type User struct {
 	UserName  string        `bson:"UserName"`
 	Password  string        `bson:"Password"`
 	Role      int           `bson:"Role"` //1:Trainee, 2:Mentor, 3:Sup
-	RoleId    bson.ObjectId `bson:"RoleId"`
+	RoleID    bson.ObjectId `bson:"RoleId"`
 	IsDeleted bool          `bson:"IsDeleted"` // true: deleted, false: no
 }
