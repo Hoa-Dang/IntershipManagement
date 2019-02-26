@@ -1,0 +1,68 @@
+/* Custom CSS*/
+.md-form label{
+    width: 100%;
+}
+  
+.md-form {
+    margin-top: 2.5rem;
+}
+  
+input.invalid + label{
+    color: red ;
+}
+  
+.select-gender .form-control{
+    margin-left: 2.5rem;
+    width: calc(100% - 2.5rem);
+    border-top: 0px;
+    border-left: 0px;
+    border-right: 0px;
+}
+  
+.errorGender {
+    margin-top: 29px;
+    color: #f44336 !important;
+    font-size: 0.8rem !important;
+}
+  
+.select-gender .invalid {
+    border-color: #f44336;
+    border-bottom-width: 2px;
+}
+
+.select-gender .valid {
+    border-color: #00c851;
+    border-bottom-width: 2px;
+}
+
+.select-dob .form-control{
+    margin-left: 2.5rem;
+    width: calc(100% - 2.5rem);
+    border: 0px;
+}
+
+.react-date-picker__wrapper {
+    width: 100%;
+    height: 35px;
+    margin-bottom: -20px;
+    padding-bottom: 3px;
+    border-top: 0px !important;
+    border-left: 0px !important;
+    border-right: 0px !important;
+    border-color: #ced4da !important;
+}
+
+.react-date-picker .invalid {
+    border-color: #f44336 !important;
+    border-bottom-width: 2px !important;
+}
+
+.react-date-picker .valid {
+    border-color: #00c851 !important;
+    border-bottom-width: 2px !important;
+}
+
+.calendar{
+    margin-top: 10px;
+}
+
