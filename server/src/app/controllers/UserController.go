@@ -2,13 +2,14 @@ package controllers
 
 import (
 	"encoding/json"
+	"fmt"
 	"net/http"
 
 	"../common"
 	"../models"
 	"github.com/gin-gonic/gin"
 	"golang.org/x/crypto/bcrypt"
-	"gopkg.in/mgo.v2"
+	mgo "gopkg.in/mgo.v2"
 	"gopkg.in/mgo.v2/bson"
 )
 
@@ -57,8 +58,17 @@ func CheckLogin(c *gin.Context) {
 		})
 		return
 	}
+	hash, err := bcrypt.GenerateFromPassword([]byte(user.Password), 10)
+	if err != nil {
+		c.JSON(http.StatusOK, gin.H{
+			"message": "not correct!",
+		})
+		return
+	}
 
-	if err := bcrypt.CompareHashAndPassword([]byte(user.Password), []byte(userTemp.Password)); err != nil {
+	hashString := string(hash)
+	fmt.Println(userTemp.Password)
+	if err := bcrypt.CompareHashAndPassword([]byte(hashString), []byte(userTemp.Password)); err != nil {
 		c.JSON(http.StatusOK, gin.H{
 			"message": "Username or Password is not correct!",
 		})
